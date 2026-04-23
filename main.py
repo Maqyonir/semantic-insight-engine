@@ -2,11 +2,10 @@ from typing import Any
 
 
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
-from sqlalchemy import Column
 from sqlalchemy.orm import Session
 from app.ml_engine import MLEngine
 from app.database import engine, get_db
-from app import models
+from app import models, schemas
 import json
 
 app = FastAPI()
@@ -82,6 +81,14 @@ async def upload_document(
         "chunks_count": len(text_chunks),
         "filename": file.filename,
     }
+
+
+@app.get(path="/documents", response_model=list[schemas.DocumentRead])
+async def get_documents(
+    db: Session = Depends(dependency=get_db),
+) -> list[models.Document]:
+    docs = db.query(models.Document).all()
+    return docs
 
 
 models.Base.metadata.create_all(bind=engine)
