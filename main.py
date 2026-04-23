@@ -1,7 +1,13 @@
-from fastapi import FastAPI, UploadFile, File
+from typing import Any
+
+
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
+from sqlalchemy import Column
+from sqlalchemy.orm import Session
 from app.ml_engine import MLEngine
-from app.database import engine, Base
+from app.database import engine, get_db
 from app import models
+import json
 
 app = FastAPI()
 ml = MLEngine()
@@ -21,7 +27,8 @@ async def get_status() -> dict[str, str]:
 @app.post(path="/upload")
 async def upload_document(
     file: UploadFile = File(default=...),
-) -> dict[str, str | list[float] | int | None]:
+    db: Session = Depends(dependency=get_db),
+) -> dict[str, Any]:
     """
     Uploads a text document to generate its vector embedding.
 
@@ -36,14 +43,44 @@ async def upload_document(
         embedding (first 5 elements), and the total vector dimension.
     """
     content = await file.read()
-    text = content.decode(encoding="utf-8")
+    try:
+        text = content.decode(encoding="utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="Text (.txt) only.")
 
-    vector = ml.create_embedding(text)
+    # Create and save the document.
+    db_document = models.Document(filename=file.filename)
+    db.add(instance=db_document)
+    db.commit()
+    db.refresh(instance=db_document)
+
+    # Divide the document into chunks (500 characters).
+    chunk_size = 500
+    text_chunks = [
+        text[i : i + chunk_size] for i in range(0, len(text), chunk_size)
+    ]
+
+    # Process the chunks.
+    for content_piece in text_chunks:
+        vector = ml.create_embedding(text=content_piece)
+
+        # Save it to the chunk table.
+        # The vector is handled as a JSON string.
+        db_chunk = models.DocumentChunk(
+            document_id=db_document.id,
+            content=content_piece,
+            embedding=json.dumps(obj=vector),
+        )
+        db.add(instance=db_chunk)
+
+    # Save all the chunks.
+    db.commit()
 
     return {
+        "message": "The document's been processed.",
+        "document_id": db_document.id,
+        "chunks_count": len(text_chunks),
         "filename": file.filename,
-        "vector_preview": vector[:5],
-        "vector_size": len(vector),
     }
 
 
