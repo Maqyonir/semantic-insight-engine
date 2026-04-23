@@ -16,9 +16,7 @@ class MLEngine:
         Args:
             model_name (str): The name of the SentenceTransformer model. Defaults to "all-MiniLM-L6-v2".
         """
-        self.model = SentenceTransformer(  # pyright: ignore[reportUnannotatedClassAttribute]
-            model_name_or_path=model_name
-        )
+        self.model = SentenceTransformer(model_name_or_path=model_name)
 
     def create_embedding(self, text: str) -> list[float]:
         """
@@ -30,6 +28,4 @@ class MLEngine:
         Returns:
             list[float]: A list of floatting-point number representing the text embedding.
         """
-        return self.model.encode(  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-            text
-        ).tolist()
+        return self.model.encode(text).tolist()

@@ -1,5 +1,7 @@
 from fastapi import FastAPI, UploadFile, File
 from app.ml_engine import MLEngine
+from app.database import engine, Base
+from app import models
 
 app = FastAPI()
 ml = MLEngine()
@@ -18,9 +20,7 @@ async def get_status() -> dict[str, str]:
 
 @app.post(path="/upload")
 async def upload_document(
-    file: UploadFile = File(
-        default=...
-    ),  # pyright: ignore[reportCallInDefaultInitializer]
+    file: UploadFile = File(default=...),
 ) -> dict[str, str | list[float] | int | None]:
     """
     Uploads a text document to generate its vector embedding.
@@ -45,3 +45,6 @@ async def upload_document(
         "vector_preview": vector[:5],
         "vector_size": len(vector),
     }
+
+
+models.Base.metadata.create_all(bind=engine)

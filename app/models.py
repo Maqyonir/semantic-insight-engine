@@ -1,30 +1,27 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, UTC
+from .database import Base
 
 
-Base = declarative_base()  # pyright: ignore[reportAny]
+class Document(Base):
+    __tablename__ = "documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String)
+    created_at = Column(DateTime, default=datetime.now(tz=UTC))
+
+    # One-to-many: Document - DocumentChunk
+    chunks = relationship(argument="DocumentChunk", back_populates="document")
 
 
-class Document(Base):  # pyright: ignore[reportAny]
-    __tablename__ = "documents"  # pyright: ignore[reportUnannotatedClassAttribute]
+class DocumentChunk(Base):
+    __tablename__ = "document_chunks"
 
-    id = Column(type=Integer, primary_key=True, index=True)  # pyright: ignore[reportUnknownVariableType, reportUnannotatedClassAttribute]
-    filename = Column(type=String)  # pyright: ignore[reportUnknownVariableType, reportUnannotatedClassAttribute]
-    created_at = Column(type=DateTime, default=datetime.now(tz=UTC))  # pyright: ignore[reportUnknownVariableType, reportUnannotatedClassAttribute]
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey(column="documents.id"))
+    content = Column(Text)
 
-    # One-to-many: Document - DocuemntChunk
-    chunks = relationship(argument="DocumentChunk", back_populates="document")  # pyright: ignore[reportUnannotatedClassAttribute]
+    embedding = Column(Text)
 
-
-class DocumentChunk(Base):  # pyright: ignore[reportAny]
-    __tabname__ = "document_chunks"  # pyright: ignore[reportUnannotatedClassAttribute]
-
-    id = Column(type=Integer, primary_key=True, index=True)  # pyright: ignore[reportUnknownVariableType, reportUnannotatedClassAttribute]
-    document_id = Column(type=Integer, foreign_keys=ForeignKey(column="documents.id"))  # pyright: ignore[reportUnknownVariableType, reportUnannotatedClassAttribute]
-    content = Column(type=Text)  # pyright: ignore[reportUnknownVariableType, reportUnannotatedClassAttribute]
-
-    embedding = Column(type=Text)  # pyright: ignore[reportUnknownVariableType, reportUnannotatedClassAttribute]
-
-    document = relationship(argument="Document", back_populates="chunks")  # pyright: ignore[reportUnannotatedClassAttribute]
+    document = relationship(argument="Document", back_populates="chunks")
