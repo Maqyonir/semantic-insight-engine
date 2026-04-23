@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text
 from sqlalchemy.orm import relationship
+from pgvector.sqlalchemy import Vector
 from datetime import datetime, UTC
 from .database import Base
 
@@ -22,6 +23,7 @@ class DocumentChunk(Base):
     document_id = Column(Integer, ForeignKey(column="documents.id"))
     content = Column(Text)
 
-    embedding = Column(Text)
+    embedding = Column(Vector(dim=384))
+    # 384 is the dimension of all-MiniLM-L6-v2.
 
     document = relationship(argument="Document", back_populates="chunks")

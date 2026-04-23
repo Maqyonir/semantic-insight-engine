@@ -68,7 +68,7 @@ async def upload_document(
         db_chunk = models.DocumentChunk(
             document_id=db_document.id,
             content=content_piece,
-            embedding=json.dumps(obj=vector),
+            embedding=vector,
         )
         db.add(instance=db_chunk)
 
@@ -89,6 +89,34 @@ async def get_documents(
 ) -> list[models.Document]:
     docs = db.query(models.Document).all()
     return docs
+
+
+@app.get(path="/search")
+async def search(query: str, db: Session = Depends(dependency=get_db)):
+    # Translate the query into the vector.
+    query_vector = ml.create_embedding(text=query)
+
+    distance_label = models.DocumentChunk.embedding.cosine_distance(
+        query_vector
+    ).label("distance")
+
+    # Run a database query using cosine similarity.
+    # Find chunks in which the distance to the vector is minimal.
+    results = (
+        db.query(models.DocumentChunk, distance_label)
+        .order_by(distance_label)
+        .limit(limit=10)
+        .all()
+    )
+
+    return [
+        {
+            "content": r.DocumentChunk.content,
+            "document_id": r.DocumentChunk.document_id,
+            "similarity": round(number=1 - r.distance, ndigits=4),
+        }
+        for r in results
+    ]
 
 
 models.Base.metadata.create_all(bind=engine)
