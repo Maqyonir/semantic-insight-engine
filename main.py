@@ -20,6 +20,7 @@ async def get_status() -> dict[str, str]:
     Returns:
         dict[str, str]: A dictionary containing the servcie availability message.
     """
+
     return {"status": "The semantic insight engine is ready to work."}
 
 
@@ -29,26 +30,35 @@ async def upload_document(
     db: Session = Depends(dependency=get_db),
 ) -> dict[str, Any]:
     """
-    Uploads a text document to generate its vector embedding.
+    Processes and stores a document by splitting it into semantic chunks.
 
-    This endpoint reads the uploaded file, decodes it as UTF-8,
-    and processes the text through the ML engine to create a semantic vector.
+    This endpoint supports both .txt and .pdf files. It extracts the text,
+    divides it into chunks of 500 characters, generates vector embeddings
+    for each chunk using the ML engine, and persists everything in the database.
 
     Args:
-        file (UploadFile): The text file to be processed.
+        file (UploadFile): The document to be processed (PDF or UTF-8 text).
+        db (Session): Database session dependency.
 
     Returns:
-        dict[str, Any]: A summary containing the filename, a preview of the
-        embedding (first 5 elements), and the total vector dimension.
+        dict[str, Any]: A summary containing the assigned document ID,
+        the total number of generated chunks, and the filename.
+
+    Raises:
+        HTTPException: 400 error if the file is empty, has an invalid
+        encoding, or if text extraction fails.
     """
+
     content = await file.read()
     text: str = ""
 
     try:
-        if file.filename.endswith(".pdf"):
+        if file.filename.endswith(  # pyright: ignore[reportOptionalMemberAccess]
+            ".pdf"
+        ):
             doc = fitz.open(stream=content, filetype="pdf")
             for page in doc:
-                text += page.get_text()
+                text += page.get_text()  # pyright: ignore[reportOperatorIssue]
         else:
             text = content.decode(encoding="utf-8")
         if not text.strip():
@@ -98,12 +108,44 @@ async def upload_document(
 async def get_documents(
     db: Session = Depends(dependency=get_db),
 ) -> list[models.Document]:
+    """
+    Retrieves a list of all uploaded documents from the database.
+
+    This endpoint fetches document metadata (such as IDs and filenames)
+    without their individual text chunks or embeddings.
+
+    Args:
+        db (Session): The database session dependency.
+
+    Returns:
+        list[models.Document]: A list of document records formatted
+        according to the DocumentRead schema.
+    """
+
     docs = db.query(models.Document).all()
     return docs
 
 
 @app.get(path="/search")
-async def search(query: str, db: Session = Depends(dependency=get_db)):
+async def search(
+    query: str, db: Session = Depends(dependency=get_db)
+) -> list[dict[str, Any]]:
+    """
+    Performs a semantic search to find relevant document chunks.
+
+    This endpoint converts the input query into a vector embedding using the ML engine
+    and calculates the cosine distance against stored chunks in the database.
+    It returns the top 10 most similar segments.
+
+    Args:
+        query (str): The search phrase or question.
+        db (Session): The database session dependency.
+
+    Returns:
+        list[dict[str, Any]]: A list of results, each containing the chunk's content,
+        source document information, and a similarity score (1 - cosine_distance).
+    """
+
     # Translate the query into the vector.
     query_vector = ml.create_embedding(text=query)
 

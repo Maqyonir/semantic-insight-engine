@@ -21,6 +21,17 @@ Base = declarative_base()
 
 
 def get_db() -> Generator[Session, Any, None]:
+    """
+    Provides a transactional scope for a single database request.
+
+    This dependency function creates a new SQLAlchemy session, yields it to the 
+    request handler, and ensures the session is closed once the request 
+    is completed, even if an exception occurs.
+
+    Yields:
+        Generator[Session, Any, None]: A SQLAlchemy Session object.
+    """
+    
     db = SessionLocal()
     try:
         yield db
