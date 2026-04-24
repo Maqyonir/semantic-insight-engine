@@ -1,4 +1,5 @@
 from sentence_transformers import SentenceTransformer
+import re
 
 
 class MLEngine:
@@ -29,3 +30,47 @@ class MLEngine:
             list[float]: A list of floatting-point number representing the text embedding.
         """
         return self.model.encode(text).tolist()
+
+    def get_chunks(
+        self, text: str, chunk_size: int = 500, overlap: int = 100
+    ) -> list[str]:
+        if overlap >= chunk_size:
+            overlap = chunk_size // 2
+
+        # Try to split the text into sections starting with a number + dot + space.
+        sections = re.split(r"\n(?=\d+\.\s)", text)
+
+        chunks = []
+        for section in sections:
+            section = section.strip()
+            if not section:
+                continue
+
+            # Divide the section if it's too big.
+            if len(section) > chunk_size:
+                start = 0
+                while start < len(section):
+                    # Get a segment of the text.
+                    end = start + chunk_size
+                    chunk = section[start:end]
+
+                    # Handle the division.
+                    if end < len(section):
+                        last_space = chunk.rfind(" ")
+                        if last_space != -1:
+                            chunk = chunk[:last_space]
+
+                    chunks.append(chunk.strip())
+
+                    # Go forward given the overlap.
+                    step = len(chunk) - overlap
+                    if step <= 0:
+                        start += len(chunk)
+                    else:
+                        start += step
+
+            else:
+                # If the section is small enough.
+                chunks.append(section.strip())
+
+        return chunks

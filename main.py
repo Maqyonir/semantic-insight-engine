@@ -50,15 +50,17 @@ async def upload_document(
     """
 
     content = await file.read()
-    text: str = ""
 
     try:
         if file.filename.endswith(  # pyright: ignore[reportOptionalMemberAccess]
             ".pdf"
         ):
             doc = fitz.open(stream=content, filetype="pdf")
-            for page in doc:
-                text += page.get_text()  # pyright: ignore[reportOperatorIssue]
+            text = "\n".join(
+                [
+                    page.get_text() for page in doc
+                ]  # pyright: ignore[reportCallIssue, reportArgumentType]
+            )
         else:
             text = content.decode(encoding="utf-8")
         if not text.strip():
@@ -74,21 +76,18 @@ async def upload_document(
     db.commit()
     db.refresh(instance=db_document)
 
-    # Divide the document into chunks (500 characters).
-    chunk_size = 500
-    text_chunks = [
-        text[i : i + chunk_size] for i in range(0, len(text), chunk_size)
-    ]
+    # Divide the document into chunks.
+    chunks = ml.get_chunks(text, chunk_size=1000, overlap=150)
 
     # Process the chunks.
-    for content_piece in text_chunks:
-        vector = ml.create_embedding(text=content_piece)
+    for chunk_text in chunks:
+        vector = ml.create_embedding(text=chunk_text)
 
         # Save it to the chunk table.
         # The vector is handled as a JSON string.
         db_chunk = models.DocumentChunk(
             document_id=db_document.id,
-            content=content_piece,
+            content=chunk_text,
             embedding=vector,
         )
         db.add(instance=db_chunk)
@@ -99,7 +98,7 @@ async def upload_document(
     return {
         "message": "The document's been processed.",
         "document_id": db_document.id,
-        "chunks_count": len(text_chunks),
+        "chunks_count": len(chunks),
         "filename": file.filename,
     }
 
