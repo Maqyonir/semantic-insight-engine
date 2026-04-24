@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.ml_engine import MLEngine
 from app.database import engine, get_db
 from app import models, schemas
-import json
+import fitz
 
 app = FastAPI()
 ml = MLEngine()
@@ -42,8 +42,19 @@ async def upload_document(
         embedding (first 5 elements), and the total vector dimension.
     """
     content = await file.read()
+    text: str = ""
+
     try:
-        text = content.decode(encoding="utf-8")
+        if file.filename.endswith(".pdf"):
+            doc = fitz.open(stream=content, filetype="pdf")
+            for page in doc:
+                text += page.get_text()
+        else:
+            text = content.decode(encoding="utf-8")
+        if not text.strip():
+            raise HTTPException(
+                status_code=400, detail="Could not get the text."
+            )
     except UnicodeDecodeError:
         raise HTTPException(status_code=400, detail="Text (.txt) only.")
 
@@ -113,6 +124,7 @@ async def search(query: str, db: Session = Depends(dependency=get_db)):
         {
             "content": r.DocumentChunk.content,
             "document_id": r.DocumentChunk.document_id,
+            "document_filename": r.DocumentChunk.document.filename,
             "similarity": round(number=1 - r.distance, ndigits=4),
         }
         for r in results
